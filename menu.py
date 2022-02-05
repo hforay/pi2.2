@@ -115,12 +115,12 @@ def countAvis():
         readDataBase.close()
     except pyodbc.Error as e:
         print("Error in connection")
-    for i in df[2]:
-        if(i == "Short"):
+    for i in df.index :
+        if(df[i][2] == "Short"):
             countShort += 1
-        elif(i == "Neutre"):
+        elif(df[i][2] == "Neutre"):
             countNeutre += 1
-        elif(i == "Long"):
+        elif(df[i][2] == "Long"):
             countLong += 1
     total = countShort + countNeutre + countLong
     pourcentageShort, pourcentageNeutre, pourcentageLong = round((countShort/total)*100,2), round((countNeutre/total)*100,2), round((countLong/total)*100,2)
