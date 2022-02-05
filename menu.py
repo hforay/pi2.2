@@ -6,6 +6,7 @@ from utilisateur import Utilisateur
 from access import Access
 from resultat import Resultat
 import os
+from gsheetsdb import connect
 
 image = Image.open("Image1.png")
 st.image(image,width=500)
@@ -23,6 +24,14 @@ con_string2= r''+first_string+second_string+third_stringBis
 
 listGerant = Resultat()
 actif = ""
+
+st.title("Connect to Google Sheets")
+gsheet_url = "https://docs.google.com/spreadsheets/d/1HV0rvdZ0Jmu-5z7cGTLuhXC5VGYI3m9qscZt5Slo0Qo/edit?usp=sharing"
+conn = connect()
+rows = conn.execute(f'SELECT * FROM "{gsheet_url}"')
+df_gsheet = pd.DataFrame(rows)
+st.write(df_gsheet)
+
 
 def Select_Actif_NbGerant():
     
@@ -115,12 +124,12 @@ def countAvis():
         readDataBase.close()
     except pyodbc.Error as e:
         print("Error in connection")
-    for i in df.index :
-        if(df[i][2] == "Short"):
+    for i in df[2]:
+        if(i == "Short"):
             countShort += 1
-        elif(df[i][2] == "Neutre"):
+        elif(i == "Neutre"):
             countNeutre += 1
-        elif(df[i][2] == "Long"):
+        elif(i == "Long"):
             countLong += 1
     total = countShort + countNeutre + countLong
     pourcentageShort, pourcentageNeutre, pourcentageLong = round((countShort/total)*100,2), round((countNeutre/total)*100,2), round((countLong/total)*100,2)
