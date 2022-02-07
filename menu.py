@@ -1,41 +1,22 @@
 import streamlit as st
 from PIL import Image
-import pyodbc
 import pandas as pd
 from utilisateur import Utilisateur
-from access import Access
 from resultat import Resultat
 import os
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 image = Image.open("Image1.png")
-st.image(image,width=500)
+st.image(image,width=690)
 
 st.title("Asset's Rating")
-
-first_string='Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ='
-second_string=os.getcwd()
-third_string ='\data\Base_Start.accdb;'
-third_stringBis='\Gerant.accdb;'
-       
-con_string = r''+first_string+second_string+third_string
-con_string2= r''+first_string+second_string+third_stringBis
-
 
 listGerant = Resultat()
 actif = ""
 
-#st.title("Connect to Google Sheets")
-#gsheet_url = "https://docs.google.com/spreadsheets/d/1HV0rvdZ0Jmu-5z7cGTLuhXC5VGYI3m9qscZt5Slo0Qo/edit?usp=sharing"
-#conn = connect()
-#rows = conn.execute(f'SELECT * FROM "{gsheet_url}"')
-#df_gsheet = pd.DataFrame(rows)
-#st.write(df_gsheet)
-
-
 SCOPE = "https://www.googleapis.com/auth/spreadsheets"
-SPREADSHEET_ID = "1QlPTiVvfRM82snGN6LELpNkOwVI1_Mp9J9xeJe-QoaA"
+SPREADSHEET_ID = "1XqZ3ipVFRnqVB8Rf4wCoz1GObfY5EKCHSzlM559lghA"
 SHEET_NAME = "Database"
 GSHEET_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}"
 
@@ -50,29 +31,39 @@ def connect_to_gsheet():
     gsheet_connector = service.spreadsheets()
     return gsheet_connector
 
-
 def get_data(gsheet_connector) -> pd.DataFrame:
     values = (
         gsheet_connector.values()
         .get(
             spreadsheetId=SPREADSHEET_ID,
-            range=f"{SHEET_NAME}!A:E",
+            range=f"{SHEET_NAME}!A:F",
         )
         .execute()
     )
-
     df = pd.DataFrame(values["values"])
     df.columns = df.iloc[0]
     df = df[1:]
+    col = ["FirstName", "LastName", "Opinion", "Variation", "Note", "Asset"]
+    df = df[col]
     return df
 
+def delete_data(gsheet_connector) -> pd.DataFrame:
+    values = (
+        gsheet_connector.values()
+        .clear(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"{SHEET_NAME}!A2:F100",
+        )
+        .execute()
+    )
+    st.success("The rating data base is ready for a new rating.")
 
 def add_row_to_gsheet(gsheet_connector, row) -> None:
     values = (
         gsheet_connector.values()
         .append(
             spreadsheetId=SPREADSHEET_ID,
-            range=f"{SHEET_NAME}!A:E",
+            range=f"{SHEET_NAME}!A:F",
             body=dict(values=row),
             valueInputOption="USER_ENTERED",
         )
@@ -97,63 +88,75 @@ def NewGerant(actif,gsheet_connector):
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            firstName = st.text_input("First Name : ")
+            FirstName = st.text_input("First Name : ")
         with col2:
-            lastName = st.text_input("Last Name : ")
+            LastName = st.text_input("Last Name : ")
 
-        gerant = Utilisateur(firstName,lastName)
+        gerant = Utilisateur(FirstName,LastName)
 
-        gerant.setAvis(st.select_slider("Opinion :",["Short", "Neutre", "Long"], value="Neutre"))
+        gerant.setAvis(st.select_slider("Opinion :",["Ultra-short","Short", "Neutre", "Long","Ultra-long"], value="Neutre"))
         nombre = range(-10,11)
         gerant.setVariation(st.select_slider("Variation :",nombre, value=0))
         gerant.setCommentaire(st.text_area("Note :"))
         gerant.setActif(actif)
+
+        Opinion = gerant.getAvis()
+        Variation = gerant.getVariation()
+        Note = gerant.getCommentaire()
+        Asset = gerant.getActif()
 
         col1, col2, col3 = st.columns(3)
         with col2:
             soumettre = st.form_submit_button("Register")
             if soumettre:
                 listGerant.listUtilisateur.append(gerant)
-                add_row_to_gsheet(gsheet_connector, [[firstName, lastName, gerant.getAvis(), gerant.getVariation(), gerant.getCommentaire(),gerant.getActif()]])
+                add_row_to_gsheet(gsheet_connector, [[FirstName, LastName, Opinion, Variation, Note, Asset]])
         if (gerant.getFirstName()!="" and gerant.getLastName()!=""):
             if soumettre:
                 st.success("The rating of the portfolio manager, {} {}, has been successfully registered.".format(gerant.getFirstName(),gerant.getLastName()))
         else:
             st.warning("Please complete the form before sending.")
 
-def ReadDB(gsheet_connector):
-    st.dataframe(get_data(gsheet_connector))
-
 def meanVariation(gsheet_connector):
     st.subheader("Variation")
     df = get_data(gsheet_connector)
-    mean = round(float(pd.DataFrame((tuple(t) for t in df[3])).mean()),2)
-    st.write("The average of the variation is : {}".format(mean))
+    somme, moyenne = 0, 0
+    if len(df)!=0:
+        for i in df.index:
+            somme += int(df["Variation"][i])
+
+        moyenne = round(float(somme / len(df)),2)
+
+    st.write("The average of the variation is : {}".format(moyenne))
 
 def countAvis(gsheet_connector):
     st.subheader("Opinion")
-    countShort, countNeutre, countLong, total = 0, 0, 0, 0
+    countShort, countNeutre, countLong, countUltraShort, countUltraLong, total = 0, 0, 0, 0, 0, 0
     df = get_data(gsheet_connector)
-    for i in df[2]:
-        if(i == "Short"):
+    for i in df.index:
+        if(df["Opinion"][i] == "Short"):
             countShort += 1
-        elif(i == "Neutre"):
+        elif(df["Opinion"][i] == "Neutre"):
             countNeutre += 1
-        elif(i == "Long"):
+        elif(df["Opinion"][i] == "Long"):
             countLong += 1
-    total = countShort + countNeutre + countLong
-    pourcentageShort, pourcentageNeutre, pourcentageLong = round((countShort/total)*100,2), round((countNeutre/total)*100,2), round((countLong/total)*100,2)
+        elif(df["Opinion"][i] == "Ultra-short"):
+            countUltraShort += 1
+        elif(df["Opinion"][i] == "Ultra-long"):
+            countUltraLong += 1
+    total = countShort + countNeutre + countLong + countUltraShort + countUltraLong
+    pourcentageUltraShort, pourcentageShort, pourcentageNeutre, pourcentageLong, pourcentageUltraLong = round((countUltraShort/total)*100,2), round((countShort/total)*100,2), round((countNeutre/total)*100,2), round((countLong/total)*100,2), round((countUltraLong/total)*100,2)
+    st.write("Ultra-short : {} | Percentage : {} %".format(countUltraShort,pourcentageUltraShort))
     st.write("Short : {} | Percentage : {} %".format(countShort,pourcentageShort))
     st.write("Neutre : {} | Percentage : {} %".format(countNeutre,pourcentageNeutre))
     st.write("Long : {} | Percentage : {} %".format(countLong,pourcentageLong))
-
+    st.write("Ultra-long : {} | Percentage : {} %".format(countUltraLong,pourcentageUltraLong))
 
 def AffCommentaire(gsheet_connector):
     st.subheader("Note")
     df = get_data(gsheet_connector)
     for i in df.index:
-        st.write(df[0][i] + " " + df[1][i] + " commented : " + df[4][i])
-
+        st.write(df["FirstName"][i] + " " + df["LastName"][i] + " commented : " + df["Note"][i])
 
 def Reporting(gsheet_connector):
 
@@ -165,31 +168,19 @@ def Reporting(gsheet_connector):
         st.write(f"Open original [Google Sheet]({GSHEET_URL})")
         st.dataframe(get_data(gsheet_connector))
 
-def RemoveBDD():
-    try: 
-        readDataBase = Access(con_string2)
-        utilisateur = 'utilisateur'
-        requete = "DELETE FROM {};".format(utilisateur)
-        data = readDataBase.execute(requete)
-        readDataBase.commit()
-        readDataBase.close()
-    except pyodbc.Error as e:
-        print("Error in connection")
-    
-    st.success("The rating data base is ready for a new rating.")
-
 def Main():
 
     gsheet_connector = connect_to_gsheet()
 
-
     actif = ""
+
     df = get_data(gsheet_connector)
- 
-    if(df.empty):
-        actif, save = Select_Actif_NbGerant(gsheet_connector)
+
+    if df.empty:
+        actif, save = Select_Actif_NbGerant()
+        df = get_data(gsheet_connector)
     else:
-        actif = str(df[5][0])
+        actif = str(df["Asset"][1])
         save = True
 
     if(save==True):
@@ -201,6 +192,6 @@ def Main():
             Reporting(gsheet_connector)
             removeBBD = st.checkbox("Reset")
             if(removeBBD):
-                RemoveBDD(gsheet_connector)
+                delete_data(gsheet_connector)
                 
 Main()
